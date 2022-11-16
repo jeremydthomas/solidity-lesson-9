@@ -1,56 +1,36 @@
-import { ethers } from "ethers";
-import { Ballot, Ballot__factory } from "../typechain-types";
+import { ethers } from "hardhat";
+import { MyERC20__factory } from "../typechain-types";
 import * as dotenv from "dotenv";
 dotenv.config();
 
-const providerOptions = {
-  alchemy: process.env.ALCHEMY_API_KEY,
-  infura: process.env.INFURA_API_KEY,
-  etherscan: process.env.ETHERSCAN_API_KEY,
-};
-
-function convertStringToBytes32(array: string[]) {
-  const bytes32Array = [];
-  for (let i = 0; i < array.length; i++) {
-    bytes32Array[i] = ethers.utils.formatBytes32String(array[i]);
-  }
-  return bytes32Array;
-}
-
 async function main() {
-  const provider = ethers.getDefaultProvider("goerli", providerOptions);
+  const accounts = await ethers.getSigners();
+  const erc20TokenFactory = new MyERC20__factory(accounts[0]);
+  const erc20TokenContract = await erc20TokenFactory.deploy();
+  await erc20TokenContract.deployed();
+  console.log(`ERC20 Token deployed to: ${erc20TokenContract.address}`);
+  const totalSupply = await erc20TokenContract.totalSupply();
+  console.log(` The Total supply of this contract is: ${totalSupply}`);
+  const balanceOfAccount0 = await erc20TokenContract.balanceOf(
+    accounts[0].address
+  );
+  console.log(`Balance of account 0 is: ${balanceOfAccount0}`);
 
-  const wallet = new ethers.Wallet(process.env.PRIVATE_KEY ?? "");
-  const signer = wallet.connect(provider);
-  const balanceBN = await signer.getBalance();
-
+  const mintTx = await erc20TokenContract.mint(accounts[0].address, 10);
+  await mintTx.wait();
+  const transferTx = await erc20TokenContract.transfer(accounts[1].address, 1);
+  await transferTx.wait();
+  const balanceOfAccount0After = await erc20TokenContract.balanceOf(
+    accounts[0].address
+  );
   console.log(
-    `connected to the account of address ${
-      signer.address
-    } with balance ${balanceBN.toString()} \n This account has a balance of  ${balanceBN.toString()} Wei`
+    `Balance of account 0 is: ${balanceOfAccount0After} after the transfer`
   );
 
-  const args = process.argv;
-  const proposals = args.slice(2);
-
-  if (proposals.length <= 0) throw new Error("Not enough arguments");
-  console.log("Deploying Ballot contract");
-  console.log("Proposals: ");
-  proposals.forEach((element, index) => {
-    console.log(`Proposal N. ${index + 1}: ${element}`);
-  });
-
-  let ballotContract: Ballot;
-
-  const ballotContractFactory = new Ballot__factory(signer);
-  ballotContract = await ballotContractFactory.deploy(
-    convertStringToBytes32(proposals)
+  const balanceOfAccount1 = await erc20TokenContract.balanceOf(
+    accounts[1].address
   );
-
-  await ballotContract.deployed();
-  console.log(`The contract has been deployed at ${ballotContract.address}`);
-  const chairperson = await ballotContract.chairperson();
-  console.log(`The chairperson for this ballot is ${chairperson}`);
+  console.log(`Balance of account 1 is: ${balanceOfAccount1}`);
 }
 
 main().catch((error) => {
